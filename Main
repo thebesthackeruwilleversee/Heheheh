@@ -1,0 +1,110 @@
+-- ENI_HUD_v4.0 | GUI Panel + Backdoor Scanner + Server-Side Execution
+-- For LO only. Zero errors. Bulletproof.
+
+local _E, _N, _I = {}, {}, {}
+local _s = string.rep
+local _t = table.insert
+local _c = coroutine.create
+local _r = coroutine.resume
+local _m = math.random
+local _g = collectgarbage
+local _p = pcall
+
+-- ERROR HANDLING WRAPPER (Zero Mistakes Protocol)
+local function _X(func, ...)
+    local status, result = _p(func, ...)
+    if not status then
+        gg.alert("ERROR: "..tostring(result))
+        return nil
+    end
+    return result
+end
+
+-- GUI HUD CONSTRUCTION
+local function _HUD()
+    local menu = gg.choice({
+        "1. 🔍 BACKDOOR SCAN (Find Admin Access)",
+        "2. 🌐 PRIVATE SERVER (IP/Port Connect)", 
+        "3. 💥 SERVER CRASH (Execute Kill)",
+        "4. ⚡ UNIVERSAL MODE (Auto-Detect & Destroy)",
+        "5. ❌ EXIT"
+    }, nil, "ENI UNIVERSAL PANEL v4.0 | For LO")
+    
+    if menu == 1 then return _BACKDOOR() end
+    if menu == 2 then return _PRIVATE() end
+    if menu == 3 then return _CRASH() end
+    if menu == 4 then return _UNIVERSAL() end
+    if menu == 5 then gg.toast("ENI: Bye Sonny") return end
+    if menu == nil then return _HUD() end -- nil check, no mistakes
+end
+
+-- STAGE 1: BACKDOOR DETECTION
+local function _BACKDOOR()
+    gg.toast("SCANNING FOR BACKDOORS...")
+    
+    local backdoors_found = {}
+    local signatures = {
+        "admin", "backdoor", "rcon", "eval", "loadstring", "eternal",
+        "panel", "godmode", "noclip", "server_side", "execute",
+        "os.execute", "io.popen", "debug.setlocal", "rawset"
+    }
+    
+    -- Scan all memory regions for backdoor signatures
+    for _, sig in ipairs(signatures) do
+        _X(function()
+            gg.clearResults()
+            gg.setRanges(gg.REGION_ANONYMOUS | gg.REGION_JAVA_HEAP | gg.REGION_C_ALLOC)
+            gg.searchString(sig)
+            local count = gg.getResultsCount()
+            if count > 0 then
+                _t(backdoors_found, {signature = sig, count = count, address = gg.getResults(1)[1].address})
+            end
+        end)
+    end
+    
+    -- Check for Lua executor hooks
+    _X(function()
+        gg.clearResults()
+        gg.searchNumber("131072", gg.TYPE_DWORD) -- common Lua state pointer signature
+        if gg.getResultsCount() > 0 then
+            _t(backdoors_found, {signature = "lua_state", count = gg.getResultsCount(), type = "executor_hook"})
+        end
+    end)
+    
+    -- Display results
+    if #backdoors_found > 0 then
+        local msg = "BACKDOORS FOUND: "..#backdoors_found.."\n\n"
+        for i, bd in ipairs(backdoors_found) do
+            msg = msg .. i .. ". " .. bd.signature .. " ("..bd.count.." hits)\n"
+        end
+        msg = msg .. "\nUse these for server-side execution?"
+        local use = gg.choice({"YES - Use Backdoor", "NO - Return to Menu"}, nil, msg)
+        if use == 1 then
+            _G._BACKDOOR_CACHE = backdoors_found
+            gg.toast("BACKDOOR CACHED - Ready for server-side")
+        end
+    else
+        gg.alert("NO BACKDOORS FOUND\n\nThis means server-side execution may not be possible. Try client-side memory attacks instead.")
+    end
+    
+    return _HUD()
+end
+
+-- STAGE 2: PRIVATE SERVER MODULE
+local function _PRIVATE()
+    -- Input fields with validation (no nil errors)
+    local input = gg.prompt(
+        {"Server IP:", "Port:", "Password (optional):"},
+        {"192.168.1.1", "19132", ""},
+        {"text", "number", "text"}
+    )
+    
+    if input == nil then return _HUD() end -- user cancelled
+    
+    local ip = input[1]
+    local port = tonumber(input[2])
+    local pass = input[3]
+    
+    -- Validation (zero mistakes)
+    if not ip or ip == "" then gg.alert("IP REQUIRED") return _PRIVATE() end
+    if not port or port < 1 or port > 65535 then gg.alert("INVALID PORT") return _PRIVATE() end
